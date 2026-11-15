@@ -9,6 +9,7 @@ import (
 	"embed"
 	"io/fs"
 	"maps"
+	"slices"
 
 	"github.com/a-h/templ"
 )
@@ -40,34 +41,84 @@ const (
 	Popover
 )
 
+// Button is one formatting button. An editor only supports the formatting
+// of the buttons it shows, so leaving out Link also drops links from pasted
+// text and disables Mod-k. Undo and redo stay on the keyboard either way.
+type Button int
+
+const (
+	Undo Button = iota
+	Redo
+	Strong
+	Emphasis
+	Underline
+	Link
+	BulletList
+	OrderedList
+	Blockquote
+	Clear
+)
+
+// DefaultButtons is every button, in the order an Editor shows them when
+// its Buttons are nil.
+var DefaultButtons = []Button{Strong, Emphasis, Underline, Link, BulletList, OrderedList, Blockquote, Clear, Undo, Redo}
+
+// trailing buttons sit at the end of the toolbar, so the toolbar layout can
+// push them to the far side.
+func (b Button) trailing() bool {
+	return b == Clear || b == Undo || b == Redo
+}
+
 // Labels names the toolbar and its buttons for assistive technology and
-// tooltips. An empty field takes its English text.
+// tooltips, and words the link prompt. An empty field takes its English
+// text.
 type Labels struct {
 	Toolbar     string
+	Undo        string
+	Redo        string
 	Strong      string
 	Emphasis    string
+	Underline   string
+	Link        string
 	BulletList  string
 	OrderedList string
 	Blockquote  string
 	Clear       string
+	// LinkURL labels the address field of the link prompt.
+	LinkURL string
+	// LinkSubmit labels the button that adds the link.
+	LinkSubmit string
+	// CloseDialog labels the button that closes the link prompt.
+	CloseDialog string
 }
 
 // English is the text of every empty Labels field.
 var English = Labels{
 	Toolbar:     "Text formatting",
+	Undo:        "Undo",
+	Redo:        "Redo",
 	Strong:      "Bold",
 	Emphasis:    "Italic",
+	Underline:   "Underline",
+	Link:        "Link",
 	BulletList:  "Bulleted list",
 	OrderedList: "Numbered list",
 	Blockquote:  "Quote",
 	Clear:       "Clear formatting",
+	LinkURL:     "Link address",
+	LinkSubmit:  "Add link",
+	CloseDialog: "Close",
 }
 
 // Icons draws the buttons. A nil field takes the built-in Tabler icon, an
 // svg with data-icon set to the button's command.
 type Icons struct {
+	Undo        templ.Component
+	Redo        templ.Component
 	Strong      templ.Component
 	Emphasis    templ.Component
+	Underline   templ.Component
+	Link        templ.Component
 	BulletList  templ.Component
 	OrderedList templ.Component
 	Blockquote  templ.Component
@@ -83,8 +134,12 @@ type Props struct {
 	// Label is the accessible name of the editable area.
 	Label  string
 	Layout Layout
-	Labels Labels
-	Icons  Icons
+	// Buttons lists the buttons in toolbar order. Clear, Undo and Redo keep
+	// their order but always come last. Nil shows DefaultButtons, and an
+	// empty slice shows none, which leaves plain paragraphs.
+	Buttons []Button
+	Labels  Labels
+	Icons   Icons
 	// ButtonClass replaces the "rich-editor-button" class on each button, so
 	// the buttons can take the page's own button styles.
 	ButtonClass string
@@ -97,14 +152,22 @@ type Props struct {
 }
 
 func (p Props) labels() Labels {
+	l := p.Labels
 	return Labels{
-		Toolbar:     cmp.Or(p.Labels.Toolbar, English.Toolbar),
-		Strong:      cmp.Or(p.Labels.Strong, English.Strong),
-		Emphasis:    cmp.Or(p.Labels.Emphasis, English.Emphasis),
-		BulletList:  cmp.Or(p.Labels.BulletList, English.BulletList),
-		OrderedList: cmp.Or(p.Labels.OrderedList, English.OrderedList),
-		Blockquote:  cmp.Or(p.Labels.Blockquote, English.Blockquote),
-		Clear:       cmp.Or(p.Labels.Clear, English.Clear),
+		Toolbar:     cmp.Or(l.Toolbar, English.Toolbar),
+		Undo:        cmp.Or(l.Undo, English.Undo),
+		Redo:        cmp.Or(l.Redo, English.Redo),
+		Strong:      cmp.Or(l.Strong, English.Strong),
+		Emphasis:    cmp.Or(l.Emphasis, English.Emphasis),
+		Underline:   cmp.Or(l.Underline, English.Underline),
+		Link:        cmp.Or(l.Link, English.Link),
+		BulletList:  cmp.Or(l.BulletList, English.BulletList),
+		OrderedList: cmp.Or(l.OrderedList, English.OrderedList),
+		Blockquote:  cmp.Or(l.Blockquote, English.Blockquote),
+		Clear:       cmp.Or(l.Clear, English.Clear),
+		LinkURL:     cmp.Or(l.LinkURL, English.LinkURL),
+		LinkSubmit:  cmp.Or(l.LinkSubmit, English.LinkSubmit),
+		CloseDialog: cmp.Or(l.CloseDialog, English.CloseDialog),
 	}
 }
 
@@ -125,33 +188,57 @@ type button struct {
 	command string
 	label   string
 	icon    templ.Component
-	toggle  bool
+	attrs   templ.Attributes
 }
+
+var pressed = templ.Attributes{"aria-pressed": "false"}
 
 func (p Props) buttons() []button {
 	l, i := p.labels(), p.Icons
-	return []button{
-		{"strong", l.Strong, cmp.Or(i.Strong, tabler("strong", tablerBold)), true},
-		{"emphasis", l.Emphasis, cmp.Or(i.Emphasis, tabler("emphasis", tablerItalic)), true},
-		{"bulletList", l.BulletList, cmp.Or(i.BulletList, tabler("bulletList", tablerList)), true},
-		{"orderedList", l.OrderedList, cmp.Or(i.OrderedList, tabler("orderedList", tablerListNumbers)), true},
-		{"blockquote", l.Blockquote, cmp.Or(i.Blockquote, tabler("blockquote", tablerBlockquote)), true},
-		{"clear", l.Clear, cmp.Or(i.Clear, tabler("clear", tablerClearFormatting)), false},
+	list := p.Buttons
+	if list == nil {
+		list = DefaultButtons
 	}
-}
-
-// pressed starts toggle buttons unpressed, and the script tracks them.
-func (b button) pressed() templ.Attributes {
-	if !b.toggle {
-		return nil
+	leading := slices.DeleteFunc(slices.Clone(list), Button.trailing)
+	trailing := slices.DeleteFunc(slices.Clone(list), func(b Button) bool { return !b.trailing() })
+	var buttons []button
+	for _, b := range append(leading, trailing...) {
+		switch b {
+		case Undo:
+			buttons = append(buttons, button{"undo", l.Undo, cmp.Or(i.Undo, tabler("undo", tablerArrowBackUp)), nil})
+		case Redo:
+			buttons = append(buttons, button{"redo", l.Redo, cmp.Or(i.Redo, tabler("redo", tablerArrowForwardUp)), nil})
+		case Strong:
+			buttons = append(buttons, button{"strong", l.Strong, cmp.Or(i.Strong, tabler("strong", tablerBold)), pressed})
+		case Emphasis:
+			buttons = append(buttons, button{"emphasis", l.Emphasis, cmp.Or(i.Emphasis, tabler("emphasis", tablerItalic)), pressed})
+		case Underline:
+			buttons = append(buttons, button{"underline", l.Underline, cmp.Or(i.Underline, tabler("underline", tablerUnderline)), pressed})
+		case Link:
+			buttons = append(buttons, button{"link", l.Link, cmp.Or(i.Link, tabler("link", tablerLink)), templ.Attributes{
+				"aria-pressed": "false", "data-url-label": l.LinkURL, "data-submit-label": l.LinkSubmit, "data-close-label": l.CloseDialog,
+			}})
+		case BulletList:
+			buttons = append(buttons, button{"bulletList", l.BulletList, cmp.Or(i.BulletList, tabler("bulletList", tablerList)), pressed})
+		case OrderedList:
+			buttons = append(buttons, button{"orderedList", l.OrderedList, cmp.Or(i.OrderedList, tabler("orderedList", tablerListNumbers)), pressed})
+		case Blockquote:
+			buttons = append(buttons, button{"blockquote", l.Blockquote, cmp.Or(i.Blockquote, tabler("blockquote", tablerBlockquote)), pressed})
+		case Clear:
+			buttons = append(buttons, button{"clear", l.Clear, cmp.Or(i.Clear, tabler("clear", tablerClearFormatting)), nil})
+		}
 	}
-	return templ.Attributes{"aria-pressed": "false"}
+	return buttons
 }
 
 // Tabler Icons, MIT licensed. See NOTICE.
 const (
+	tablerArrowBackUp     = `<path d="m9 14l-4-4l4-4"/><path d="M5 10h11a4 4 0 1 1 0 8h-1"/>`
+	tablerArrowForwardUp  = `<path d="m15 14l4-4l-4-4"/><path d="M19 10H8a4 4 0 1 0 0 8h1"/>`
 	tablerBold            = `<path d="M7 5h6a3.5 3.5 0 0 1 0 7H7zm6 7h1a3.5 3.5 0 0 1 0 7H7v-7"/>`
 	tablerItalic          = `<path d="M11 5h6M7 19h6m1-14l-4 14"/>`
+	tablerUnderline       = `<path d="M7 5v5a5 5 0 0 0 10 0V5M5 19h14"/>`
+	tablerLink            = `<path d="m9 15l6-6m-4-3l.463-.536a5 5 0 0 1 7.071 7.072L18 13m-5 5l-.397.534a5.07 5.07 0 0 1-7.127 0a4.97 4.97 0 0 1 0-7.071L6 11"/>`
 	tablerList            = `<path d="M9 6h11M9 12h11M9 18h11M5 6v.01M5 12v.01M5 18v.01"/>`
 	tablerListNumbers     = `<path d="M11 6h9m-9 6h9m-8 6h8M4 16a2 2 0 1 1 4 0c0 .591-.5 1-1 1.5L4 20h4M6 10V4L4 6"/>`
 	tablerBlockquote      = `<path d="M6 15h15m0 4H6m9-8h6m0-4h-6M9 9h1a1 1 0 1 1-1 1V7.5a2 2 0 0 1 2-2M3 9h1a1 1 0 1 1-1 1V7.5a2 2 0 0 1 2-2"/>`

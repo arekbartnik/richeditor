@@ -1,24 +1,102 @@
 import { Command, moveToDocSide, unwrapBlock } from "wordgard/command";
 import { serialize } from "wordgard/doc";
-import { Wordgard } from "wordgard/editor";
-import { history } from "wordgard/history";
-import { blockDoc, blockquote, bulletList, emphasis, lineBreak, orderedList, paragraph, strong } from "wordgard/schema";
-import { Emphasis, Strong } from "wordgard/types";
+import { Dialog, KeyBinding, Wordgard } from "wordgard/editor";
+import { history, redoButton, undoButton } from "wordgard/history";
+import { phrases } from "wordgard/phrases";
+import { blockDoc, blockquote, bulletList, emphasis, lineBreak, link, orderedList, paragraph, strong, underline } from "wordgard/schema";
+import { GardState } from "wordgard/state";
+import { Emphasis, Link, Strong, Underline } from "wordgard/types";
 
-const config = [blockDoc(), paragraph(), lineBreak(), strong(), emphasis(), bulletList(), orderedList(), blockquote(), history()];
+const base = [blockDoc(), paragraph(), lineBreak(), history()];
 
-const clearFormatting = ({ state }) => {
-  const { selection, sel } = state;
-  const block = sel.head.textblockParent;
-  const range = selection.empty && block ? { from: block.start, to: block.end } : { from: selection.from, to: selection.to };
-  let tr = state.update({ changes: [Strong, Emphasis].map((remove) => ({ ...range, remove })) });
-  let changes = tr.changes;
-  for (let spec; (spec = unwrapBlock({ state: tr.state }, null)); ) {
-    tr = tr.state.update(spec);
-    if (tr.changes.empty) break;
-    changes = changes.compose(tr.changes);
-  }
-  return { changes, selection: tr.state.selection, scrollIntoView: true, userEvent: "format.clear" };
+// linkTarget turns what a user types into a link address. A bare domain gets
+// https://, and schemes other than web, mail and phone are refused.
+const linkTarget = (input) => {
+  const url = input.trim();
+  if (!url || /\s/.test(url)) return null;
+  if (/^(https?:|mailto:|tel:|\/|#)/i.test(url)) return url;
+  if (/^[a-z][a-z\d+.-]*:(?!\d)/i.test(url)) return null;
+  return url.includes("@") && !url.includes("/") ? `mailto:${url}` : `https://${url}`;
+};
+
+// Adapted from Wordgard's toggleLink, MIT licensed, to word the prompt from
+// the button and to check the address.
+const linkFeature = (el) => {
+  const toggleLink = (wg) => {
+    if (wg.state.readOnly) return false;
+    const open = Dialog.get(wg, toggleLink);
+    if (open) {
+      open.close();
+      return true;
+    }
+    const { selection, doc } = wg.state;
+    if (selection.empty) return false;
+    const remove = [];
+    for (const { from, to } of selection.ranges)
+      doc.iterate(from, to, (node, pos) => {
+        const has = Link.isInSet(node.marks);
+        if (has) remove.push({ from: pos, to: pos + node.length, remove: has });
+      });
+    if (remove.length) {
+      wg.dispatch({ changes: remove, userEvent: "mark.remove" });
+      return true;
+    }
+    Dialog.show(wg, {
+      key: toggleLink,
+      label: el.dataset.urlLabel,
+      input: { type: "text", name: "url" },
+      submitLabel: el.dataset.submitLabel,
+      class: "wg-link-dialog",
+      focus: true,
+      closedBy: (tr) => !!tr.selection,
+      tooltip: { pos: selection.from },
+    }).result.then((form) => {
+      wg.focus();
+      const url = form && linkTarget(form.elements.namedItem("url")?.value ?? "");
+      if (url) wg.dispatch({ changes: wg.state.selection.ranges.map((r) => ({ from: r.from, to: r.to, add: Link.of(url) })), userEvent: "mark.add" });
+    });
+    return true;
+  };
+  return {
+    config: [
+      GardState.schemaElement.of(Link),
+      KeyBinding.of({ key: "Mod-k", run: toggleLink }),
+      link.tooltip,
+      link.pasteOver,
+      phrases.translatePartial({ dialog_close: el.dataset.closeLabel }),
+    ],
+    button: { run: toggleLink, active: link.button.active, enable: link.button.enable },
+  };
+};
+
+const clearFormatting =
+  (marks) =>
+  ({ state }) => {
+    const { selection, sel } = state;
+    const block = sel.head.textblockParent;
+    const range = selection.empty && block ? { from: block.start, to: block.end } : { from: selection.from, to: selection.to };
+    let tr = state.update({ changes: marks.map((remove) => ({ ...range, remove })) });
+    let changes = tr.changes;
+    for (let spec; (spec = unwrapBlock({ state: tr.state }, null)); ) {
+      tr = tr.state.update(spec);
+      if (tr.changes.empty) break;
+      changes = changes.compose(tr.changes);
+    }
+    return { changes, selection: tr.state.selection, scrollIntoView: true, userEvent: "format.clear" };
+  };
+
+// Each button brings its formatting into the schema, so an editor without
+// a button cannot hold that formatting at all.
+const features = {
+  undo: () => ({ button: undoButton }),
+  redo: () => ({ button: redoButton }),
+  strong: () => ({ config: strong(), button: strong.button, mark: Strong }),
+  emphasis: () => ({ config: emphasis(), button: emphasis.button, mark: Emphasis }),
+  underline: () => ({ config: underline(), button: underline.button, mark: Underline }),
+  link: linkFeature,
+  bulletList: () => ({ config: bulletList(), button: bulletList.toggleButton }),
+  orderedList: () => ({ config: orderedList(), button: orderedList.toggleButton }),
+  blockquote: () => ({ config: blockquote(), button: blockquote.button }),
 };
 
 const unwrapTightListParagraphs = (root) => {
@@ -34,15 +112,6 @@ const toHTML = (doc) => {
   box.append(serialize(doc).toDOM());
   unwrapTightListParagraphs(box);
   return box.innerHTML;
-};
-
-const buttons = {
-  strong: strong.button,
-  emphasis: emphasis.button,
-  bulletList: bulletList.toggleButton,
-  orderedList: orderedList.toggleButton,
-  blockquote: blockquote.button,
-  clear: { run: clearFormatting },
 };
 
 const selectionPopover = (host, { content, focus, selectedRect }) => {
@@ -106,6 +175,7 @@ class RichEditor extends HTMLElement {
   #html = null;
   #message = "";
   #toolbar = [];
+  #config = [];
   #popover = null;
 
   connectedCallback() {
@@ -115,7 +185,11 @@ class RichEditor extends HTMLElement {
       delete this.value;
       this.#html = html;
     }
-    this.#toolbar = [...this.querySelectorAll("[data-command]")].map((el) => [el, buttons[el.dataset.command]]);
+    const els = [...this.querySelectorAll("[data-command]")];
+    const enabled = els.map((el) => [el, features[el.dataset.command]?.(el) ?? {}]);
+    const marks = enabled.flatMap(([, f]) => f.mark ?? []);
+    this.#toolbar = enabled.map(([el, f]) => [el, el.dataset.command === "clear" ? { run: clearFormatting(marks) } : f.button]);
+    this.#config = [base, enabled.map(([, f]) => f.config ?? [])];
     this.#popover = selectionPopover(this, {
       content: () => this.#wg.contentDOM,
       focus: () => this.#wg.focus(),
@@ -195,12 +269,18 @@ class RichEditor extends HTMLElement {
   #runCommand = (evt) => {
     const el = evt.target.closest("[data-command]");
     if (!el) return;
-    Command.dispatch(this.#wg, buttons[el.dataset.command].run);
-    this.#wg.focus();
+    const button = this.#toolbar.find(([b]) => b === el)?.[1];
+    if (!button?.run) return;
+    Command.dispatch(this.#wg, button.run);
+    // The link prompt takes focus inside the editor and keeps it.
+    if (!this.#wg.dom.contains(document.activeElement)) this.#wg.focus();
   };
 
   #syncToolbar(state) {
-    for (const [el, button] of this.#toolbar) if (button.active) el.setAttribute("aria-pressed", String(button.active(state)));
+    for (const [el, button] of this.#toolbar) {
+      if (button?.active) el.setAttribute("aria-pressed", String(button.active(state)));
+      if (button?.enable) el.disabled = !button.enable(state);
+    }
   }
 
   #validate() {
@@ -216,7 +296,7 @@ class RichEditor extends HTMLElement {
       doc: html,
       parent: this,
       config: [
-        config,
+        this.#config,
         Wordgard.label(this.getAttribute("label") ?? ""),
         Wordgard.editorAttributes.of({ class: "rich-editor-content" }),
         contentClass ? Wordgard.contentAttributes.of({ class: contentClass }) : [],

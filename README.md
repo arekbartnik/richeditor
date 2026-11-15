@@ -4,8 +4,10 @@ A rich text editor for Go web apps that render HTML with [templ](https://templ.g
 It is a form field. Put it inside a `<form>` and the HTML posts under its name like any input.
 The editing engine is [Wordgard](https://www.npmjs.com/package/wordgard), bundled into one script, so there is no npm step in your project and no other JavaScript framework to load.
 
-The editor supports bold, italic, bulleted and numbered lists, quotes, and clearing formatting.
+The editor supports bold, italic, underline, links, bulleted and numbered lists, quotes, clearing formatting, and undo and redo.
+Each editor can offer only some of these.
 Typing `- `, `1. ` or `> ` at the start of a line starts a list or a quote.
+Mod-b, Mod-i, Mod-u and Mod-k toggle bold, italic, underline and a link.
 
 ## Installation
 
@@ -45,7 +47,7 @@ The script is a module, so a page that loads it without `Head` needs `<script ty
 
 The posted HTML comes from the browser, so it can hold anything.
 Sanitize it before you store or display it, for example with [bluemonday](https://github.com/microcosm-cc/bluemonday).
-The editor itself produces only `p`, `br`, `strong`, `em`, `ul`, `ol`, `li` and `blockquote`.
+The editor itself produces only `p`, `br`, `strong`, `em`, `u`, `a` with `href`, `ul`, `ol`, `li` and `blockquote`.
 
 ### Props
 
@@ -54,8 +56,9 @@ The editor itself produces only `p`, `br`, `strong`, `em`, `ul`, `ol`, `li` and 
 | `Name` | Form field the HTML posts under. |
 | `Value` | Initial HTML. Form reset restores it. |
 | `Label` | Accessible name of the editable area. |
+| `Buttons` | The buttons, in toolbar order. See below. |
 | `Layout` | `richeditor.Toolbar` (default) shows a fixed toolbar. `richeditor.Popover` shows the buttons over selected text. Alt+F10 moves focus into the popover and Escape returns to the text. |
-| `Labels` | Button and toolbar labels. An empty field takes its text from `richeditor.English`. |
+| `Labels` | Button, toolbar and link prompt labels. An empty field takes its text from `richeditor.English`. |
 | `Icons` | Button icons as templ components. A nil field takes the built-in Tabler icon. |
 | `ButtonClass` | Replaces the `rich-editor-button` class on every button, so the buttons can use your own button styles. |
 | `ContentClass` | Added to the editable text, so it can share styles with the stored HTML where you display it. |
@@ -71,6 +74,27 @@ The editor itself produces only `p`, `br`, `strong`, `em`, `ul`, `ol`, `li` and 
 - `focusEnd()` focuses the text with the cursor at the end.
 - An `input` event fires on every change.
 
+### Buttons
+
+`Buttons` picks the formatting an editor offers.
+The editor only supports the formatting of its buttons, so an editor without `richeditor.Link` drops links from pasted and loaded HTML and ignores Mod-k.
+
+```go
+richeditor.Props{
+	Name:    "summary",
+	Buttons: []richeditor.Button{richeditor.Strong, richeditor.Emphasis, richeditor.Clear},
+}
+```
+
+Nil shows `richeditor.DefaultButtons`, which is every button.
+An empty slice shows none and leaves plain paragraphs.
+`Clear`, `Undo` and `Redo` always come last and sit at the far end of the toolbar.
+Undo and redo stay on the keyboard even without their buttons.
+
+The link button works on selected text.
+It asks for an address, adds `https://` to a bare domain such as `example.com`, and refuses schemes other than `http`, `https`, `mailto` and `tel`.
+On text that already has a link, it removes the link.
+
 ### Icons
 
 Pass your own components to use another icon set. Each one renders inside its button.
@@ -80,7 +104,7 @@ richeditor.Props{
 	Name: "body",
 	Icons: richeditor.Icons{
 		Strong: myicons.Bold(),
-		Clear:  myicons.Eraser(),
+		Link:   myicons.Chain(),
 	},
 }
 ```
@@ -95,6 +119,7 @@ The editor's parts carry these classes.
 | `rich-editor-popover` | The popover of the `Popover` layout. |
 | `rich-editor-button` | Each button, unless `ButtonClass` replaces it. |
 | `rich-editor-content` | The box around the editable text. The editable text inside it is `wg-content`. |
+| `wg-link-dialog` | The link prompt. |
 
 Wordgard adds its own styles to the content box after the page's stylesheets.
 Put `rich-editor` in front of the class to outrank them, as in `rich-editor .rich-editor-content wg-content { padding: 16px; }`.

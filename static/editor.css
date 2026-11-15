@@ -19,7 +19,9 @@ rich-editor {
     padding: 4px;
     border-block-end: 1px solid var(--rich-editor-divider, color-mix(in srgb, currentcolor 15%, transparent));
 
-    [data-command="clear"] {
+    /* The editor renders Clear, Undo and Redo last, so the first of them
+       starts the group on the far side. */
+    > :is([data-command="clear"], [data-command="undo"], [data-command="redo"]):not(:is([data-command="clear"], [data-command="undo"], [data-command="redo"]) ~ *) {
       margin-inline-start: auto;
     }
   }
@@ -54,8 +56,13 @@ rich-editor {
     font: inherit;
     cursor: pointer;
 
-    &:hover {
+    &:hover:not(:disabled) {
       background: var(--rich-editor-hover, color-mix(in srgb, currentcolor 6%, transparent));
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: default;
     }
 
     &:focus-visible {
