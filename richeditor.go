@@ -5,6 +5,7 @@
 package richeditor
 
 import (
+	"cmp"
 	"embed"
 	"io/fs"
 	"maps"
@@ -40,7 +41,7 @@ const (
 )
 
 // Labels names the toolbar and its buttons for assistive technology and
-// tooltips.
+// tooltips. An empty field takes its English text.
 type Labels struct {
 	Toolbar     string
 	Strong      string
@@ -51,7 +52,7 @@ type Labels struct {
 	Clear       string
 }
 
-// English is the Labels an Editor uses when its Labels are zero.
+// English is the text of every empty Labels field.
 var English = Labels{
 	Toolbar:     "Text formatting",
 	Strong:      "Bold",
@@ -60,6 +61,17 @@ var English = Labels{
 	OrderedList: "Numbered list",
 	Blockquote:  "Quote",
 	Clear:       "Clear formatting",
+}
+
+// Icons draws the buttons. A nil field takes the built-in Tabler icon, an
+// svg with data-icon set to the button's command.
+type Icons struct {
+	Strong      templ.Component
+	Emphasis    templ.Component
+	BulletList  templ.Component
+	OrderedList templ.Component
+	Blockquote  templ.Component
+	Clear       templ.Component
 }
 
 // Props configures an Editor.
@@ -72,10 +84,11 @@ type Props struct {
 	Label  string
 	Layout Layout
 	Labels Labels
-	// ButtonClass replaces the "rich-button" class on each button, so the
-	// buttons can take the page's own button styles.
+	Icons  Icons
+	// ButtonClass replaces the "rich-editor-button" class on each button, so
+	// the buttons can take the page's own button styles.
 	ButtonClass string
-	// ContentClass is added to the editable area, so it can share the styles
+	// ContentClass is added to the editable text, so it can share the styles
 	// of the stored HTML where it is displayed.
 	ContentClass string
 	// Attrs adds attributes to the rich-editor element, such as an id or
@@ -84,17 +97,19 @@ type Props struct {
 }
 
 func (p Props) labels() Labels {
-	if p.Labels == (Labels{}) {
-		return English
+	return Labels{
+		Toolbar:     cmp.Or(p.Labels.Toolbar, English.Toolbar),
+		Strong:      cmp.Or(p.Labels.Strong, English.Strong),
+		Emphasis:    cmp.Or(p.Labels.Emphasis, English.Emphasis),
+		BulletList:  cmp.Or(p.Labels.BulletList, English.BulletList),
+		OrderedList: cmp.Or(p.Labels.OrderedList, English.OrderedList),
+		Blockquote:  cmp.Or(p.Labels.Blockquote, English.Blockquote),
+		Clear:       cmp.Or(p.Labels.Clear, English.Clear),
 	}
-	return p.Labels
 }
 
 func (p Props) buttonClass() string {
-	if p.ButtonClass == "" {
-		return "rich-button"
-	}
-	return p.ButtonClass
+	return cmp.Or(p.ButtonClass, "rich-editor-button")
 }
 
 func (p Props) attrs() templ.Attributes {
@@ -109,26 +124,36 @@ func (p Props) attrs() templ.Attributes {
 type button struct {
 	command string
 	label   string
-	icon    string
+	icon    templ.Component
+	toggle  bool
 }
 
 func (p Props) buttons() []button {
-	l := p.labels()
+	l, i := p.labels(), p.Icons
 	return []button{
-		{"strong", l.Strong, iconBold},
-		{"emphasis", l.Emphasis, iconItalic},
-		{"bulletList", l.BulletList, iconList},
-		{"orderedList", l.OrderedList, iconListNumbers},
-		{"blockquote", l.Blockquote, iconBlockquote},
+		{"strong", l.Strong, cmp.Or(i.Strong, tabler("strong", tablerBold)), true},
+		{"emphasis", l.Emphasis, cmp.Or(i.Emphasis, tabler("emphasis", tablerItalic)), true},
+		{"bulletList", l.BulletList, cmp.Or(i.BulletList, tabler("bulletList", tablerList)), true},
+		{"orderedList", l.OrderedList, cmp.Or(i.OrderedList, tabler("orderedList", tablerListNumbers)), true},
+		{"blockquote", l.Blockquote, cmp.Or(i.Blockquote, tabler("blockquote", tablerBlockquote)), true},
+		{"clear", l.Clear, cmp.Or(i.Clear, tabler("clear", tablerClearFormatting)), false},
 	}
+}
+
+// pressed starts toggle buttons unpressed, and the script tracks them.
+func (b button) pressed() templ.Attributes {
+	if !b.toggle {
+		return nil
+	}
+	return templ.Attributes{"aria-pressed": "false"}
 }
 
 // Tabler Icons, MIT licensed. See NOTICE.
 const (
-	iconBold            = `<path d="M7 5h6a3.5 3.5 0 0 1 0 7H7zm6 7h1a3.5 3.5 0 0 1 0 7H7v-7"/>`
-	iconItalic          = `<path d="M11 5h6M7 19h6m1-14l-4 14"/>`
-	iconList            = `<path d="M9 6h11M9 12h11M9 18h11M5 6v.01M5 12v.01M5 18v.01"/>`
-	iconListNumbers     = `<path d="M11 6h9m-9 6h9m-8 6h8M4 16a2 2 0 1 1 4 0c0 .591-.5 1-1 1.5L4 20h4M6 10V4L4 6"/>`
-	iconBlockquote      = `<path d="M6 15h15m0 4H6m9-8h6m0-4h-6M9 9h1a1 1 0 1 1-1 1V7.5a2 2 0 0 1 2-2M3 9h1a1 1 0 1 1-1 1V7.5a2 2 0 0 1 2-2"/>`
-	iconClearFormatting = `<path d="m17 15l4 4m0-4l-4 4M7 6V5h11v1M7 19h4m2-14L9 19"/>`
+	tablerBold            = `<path d="M7 5h6a3.5 3.5 0 0 1 0 7H7zm6 7h1a3.5 3.5 0 0 1 0 7H7v-7"/>`
+	tablerItalic          = `<path d="M11 5h6M7 19h6m1-14l-4 14"/>`
+	tablerList            = `<path d="M9 6h11M9 12h11M9 18h11M5 6v.01M5 12v.01M5 18v.01"/>`
+	tablerListNumbers     = `<path d="M11 6h9m-9 6h9m-8 6h8M4 16a2 2 0 1 1 4 0c0 .591-.5 1-1 1.5L4 20h4M6 10V4L4 6"/>`
+	tablerBlockquote      = `<path d="M6 15h15m0 4H6m9-8h6m0-4h-6M9 9h1a1 1 0 1 1-1 1V7.5a2 2 0 0 1 2-2M3 9h1a1 1 0 1 1-1 1V7.5a2 2 0 0 1 2-2"/>`
+	tablerClearFormatting = `<path d="m17 15l4 4m0-4l-4 4M7 6V5h11v1M7 19h4m2-14L9 19"/>`
 )

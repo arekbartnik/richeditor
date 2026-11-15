@@ -12,7 +12,7 @@ rich-editor {
     border-color: var(--rich-editor-accent, #0a66d6);
   }
 
-  .rich-toolbar {
+  .rich-editor-toolbar {
     display: flex;
     flex-wrap: wrap;
     gap: 2px;
@@ -24,7 +24,7 @@ rich-editor {
     }
   }
 
-  .rich-popover {
+  .rich-editor-popover {
     position: fixed;
     inset: auto;
     gap: 2px;
@@ -41,7 +41,7 @@ rich-editor {
     }
   }
 
-  .rich-button {
+  .rich-editor-button {
     display: inline-grid;
     place-items: center;
     inline-size: 28px;
@@ -66,5 +66,22 @@ rich-editor {
 
   [data-command][aria-pressed="true"] {
     background: var(--rich-editor-pressed, color-mix(in srgb, currentcolor 10%, transparent));
+  }
+
+  /* Wordgard injects its theme after page styles. Naming rich-editor in front
+     of the class outranks it, and a page does the same to restyle the box. */
+  .rich-editor-content {
+    --wg-highlight-color: var(--rich-editor-accent, #0a66d6);
+
+    border: none;
+
+    &.wg-focused {
+      outline: none;
+    }
+
+    wg-content {
+      min-block-size: var(--rich-editor-min-height, 4lh);
+      padding: var(--rich-editor-padding, 6px 12px);
+    }
   }
 }

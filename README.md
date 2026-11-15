@@ -55,9 +55,10 @@ The editor itself produces only `p`, `br`, `strong`, `em`, `ul`, `ol`, `li` and 
 | `Value` | Initial HTML. Form reset restores it. |
 | `Label` | Accessible name of the editable area. |
 | `Layout` | `richeditor.Toolbar` (default) shows a fixed toolbar. `richeditor.Popover` shows the buttons over selected text. Alt+F10 moves focus into the popover and Escape returns to the text. |
-| `Labels` | Button and toolbar labels. Defaults to `richeditor.English`. |
-| `ButtonClass` | Replaces the `rich-button` class on every button, so the buttons can use your own button styles. |
-| `ContentClass` | Added to the editable area, so it can share styles with the stored HTML where you display it. |
+| `Labels` | Button and toolbar labels. An empty field takes its text from `richeditor.English`. |
+| `Icons` | Button icons as templ components. A nil field takes the built-in Tabler icon. |
+| `ButtonClass` | Replaces the `rich-editor-button` class on every button, so the buttons can use your own button styles. |
+| `ContentClass` | Added to the editable text, so it can share styles with the stored HTML where you display it. |
 | `Attrs` | Extra attributes on the `<rich-editor>` element, such as `id` or event handlers. |
 
 ### Element API
@@ -70,7 +71,33 @@ The editor itself produces only `p`, `br`, `strong`, `em`, `ul`, `ol`, `li` and 
 - `focusEnd()` focuses the text with the cursor at the end.
 - An `input` event fires on every change.
 
+### Icons
+
+Pass your own components to use another icon set. Each one renders inside its button.
+
+```go
+richeditor.Props{
+	Name: "body",
+	Icons: richeditor.Icons{
+		Strong: myicons.Bold(),
+		Clear:  myicons.Eraser(),
+	},
+}
+```
+
 ### Styling
+
+The editor's parts carry these classes.
+
+| Class | Element |
+| --- | --- |
+| `rich-editor-toolbar` | The fixed toolbar of the `Toolbar` layout. |
+| `rich-editor-popover` | The popover of the `Popover` layout. |
+| `rich-editor-button` | Each button, unless `ButtonClass` replaces it. |
+| `rich-editor-content` | The box around the editable text. The editable text inside it is `wg-content`. |
+
+Wordgard adds its own styles to the content box after the page's stylesheets.
+Put `rich-editor` in front of the class to outrank them, as in `rich-editor .rich-editor-content wg-content { padding: 16px; }`.
 
 `editor.css` reads these custom properties, so a page can match its theme without overriding selectors.
 

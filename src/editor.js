@@ -5,14 +5,7 @@ import { history } from "wordgard/history";
 import { blockDoc, blockquote, bulletList, emphasis, lineBreak, orderedList, paragraph, strong } from "wordgard/schema";
 import { Emphasis, Strong } from "wordgard/types";
 
-// A Wordgard theme, because page CSS loses to the scoped rules Wordgard injects.
-const theme = Wordgard.theme({
-  "&": { "--wg-highlight-color": "var(--rich-editor-accent, #0a66d6)", border: "none" },
-  "&.wg-focused": { outline: "none" },
-  "wg-content": { minHeight: "var(--rich-editor-min-height, 4lh)", padding: "var(--rich-editor-padding, 6px 12px)" },
-});
-
-const config = [blockDoc(), paragraph(), lineBreak(), strong(), emphasis(), bulletList(), orderedList(), blockquote(), history(), theme];
+const config = [blockDoc(), paragraph(), lineBreak(), strong(), emphasis(), bulletList(), orderedList(), blockquote(), history()];
 
 const clearFormatting = ({ state }) => {
   const { selection, sel } = state;
@@ -53,7 +46,7 @@ const buttons = {
 };
 
 const selectionPopover = (host, { content, focus, selectedRect }) => {
-  const popover = host.querySelector(".rich-popover");
+  const popover = host.querySelector(".rich-editor-popover");
   if (!popover) return { sync() {}, destroy() {} };
   let frame = 0;
   const open = () => popover.matches(":popover-open");
@@ -225,6 +218,7 @@ class RichEditor extends HTMLElement {
       config: [
         config,
         Wordgard.label(this.getAttribute("label") ?? ""),
+        Wordgard.editorAttributes.of({ class: "rich-editor-content" }),
         contentClass ? Wordgard.contentAttributes.of({ class: contentClass }) : [],
         Wordgard.updateListener.of((update) => {
           this.#syncToolbar(update.state);

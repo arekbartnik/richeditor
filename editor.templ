@@ -7,15 +7,17 @@ templ Head(scriptURL, styleURL string) {
 	<script type="module" src={ templ.SafeURL(scriptURL) }></script>
 }
 
-// Editor renders a rich-editor element with its formatting buttons.
+// Editor renders a rich-editor element with its formatting buttons. The
+// script adds the rich-editor-content class to the box around the editable
+// text.
 templ Editor(p Props) {
 	<rich-editor { p.attrs()... }>
 		if p.Layout == Popover {
-			<div class="rich-popover" role="toolbar" aria-label={ p.labels().Toolbar } popover="manual">
+			<div class="rich-editor-popover" role="toolbar" aria-label={ p.labels().Toolbar } popover="manual">
 				@buttons(p)
 			</div>
 		} else {
-			<div class="rich-toolbar" role="toolbar" aria-label={ p.labels().Toolbar }>
+			<div class="rich-editor-toolbar" role="toolbar" aria-label={ p.labels().Toolbar }>
 				@buttons(p)
 			</div>
 		}
@@ -24,17 +26,14 @@ templ Editor(p Props) {
 
 templ buttons(p Props) {
 	for _, b := range p.buttons() {
-		<button class={ p.buttonClass() } type="button" data-command={ b.command } aria-label={ b.label } title={ b.label } aria-pressed="false">
-			@icon(b.command, b.icon)
+		<button class={ p.buttonClass() } type="button" data-command={ b.command } aria-label={ b.label } title={ b.label } { b.pressed()... }>
+			@b.icon
 		</button>
 	}
-	<button class={ p.buttonClass() } type="button" data-command="clear" aria-label={ p.labels().Clear } title={ p.labels().Clear }>
-		@icon("clear", iconClearFormatting)
-	</button>
 }
 
-templ icon(name, path string) {
-	<svg data-icon={ name } viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+templ tabler(command, path string) {
+	<svg data-icon={ command } viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
 		@templ.Raw(path)
 	</svg>
 }
