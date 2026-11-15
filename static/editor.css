@@ -1,0 +1,70 @@
+rich-editor {
+  display: block;
+  border: 1px solid var(--rich-editor-border, #8d8d8d);
+  border-radius: var(--rich-editor-radius, 6px);
+  background: var(--rich-editor-background, Canvas);
+  box-shadow: var(--rich-editor-shadow, none);
+  color: var(--rich-editor-color, CanvasText);
+  font: var(--rich-editor-font, inherit);
+  transition: border-color 0.15s;
+
+  &:focus-within {
+    border-color: var(--rich-editor-accent, #0a66d6);
+  }
+
+  .rich-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    padding: 4px;
+    border-block-end: 1px solid var(--rich-editor-divider, color-mix(in srgb, currentcolor 15%, transparent));
+
+    [data-command="clear"] {
+      margin-inline-start: auto;
+    }
+  }
+
+  .rich-popover {
+    position: fixed;
+    inset: auto;
+    gap: 2px;
+    margin: 0;
+    padding: 4px;
+    border: 1px solid var(--rich-editor-divider, color-mix(in srgb, currentcolor 15%, transparent));
+    border-radius: var(--rich-editor-radius, 6px);
+    background: var(--rich-editor-background, Canvas);
+    box-shadow: var(--rich-editor-popover-shadow, 0 4px 16px rgb(0 0 0 / 15%));
+    color: var(--rich-editor-color, CanvasText);
+
+    &:popover-open {
+      display: flex;
+    }
+  }
+
+  .rich-button {
+    display: inline-grid;
+    place-items: center;
+    inline-size: 28px;
+    block-size: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--rich-editor-button-radius, 4px);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--rich-editor-hover, color-mix(in srgb, currentcolor 6%, transparent));
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--rich-editor-accent, #0a66d6);
+      outline-offset: -2px;
+    }
+  }
+
+  [data-command][aria-pressed="true"] {
+    background: var(--rich-editor-pressed, color-mix(in srgb, currentcolor 10%, transparent));
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "richeditor",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/editor.js --bundle --format=esm --minify --legal-comments=eof --banner:js='// richeditor with Wordgard 0.7.0, rebuilt with npm run build. MIT licensed, see NOTICE.' --outfile=static/editor.js"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "wordgard": "0.7.0"
+  },
+  "packageManager": "npm@11.12.1"
+}

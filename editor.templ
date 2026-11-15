@@ -1,0 +1,40 @@
+package richeditor
+
+// Head loads the editor's script and stylesheet from the URLs that serve
+// Files. A page renders it once, before or after its editors.
+templ Head(scriptURL, styleURL string) {
+	<link rel="stylesheet" href={ templ.SafeURL(styleURL) }/>
+	<script type="module" src={ templ.SafeURL(scriptURL) }></script>
+}
+
+// Editor renders a rich-editor element with its formatting buttons.
+templ Editor(p Props) {
+	<rich-editor { p.attrs()... }>
+		if p.Layout == Popover {
+			<div class="rich-popover" role="toolbar" aria-label={ p.labels().Toolbar } popover="manual">
+				@buttons(p)
+			</div>
+		} else {
+			<div class="rich-toolbar" role="toolbar" aria-label={ p.labels().Toolbar }>
+				@buttons(p)
+			</div>
+		}
+	</rich-editor>
+}
+
+templ buttons(p Props) {
+	for _, b := range p.buttons() {
+		<button class={ p.buttonClass() } type="button" data-command={ b.command } aria-label={ b.label } title={ b.label } aria-pressed="false">
+			@icon(b.command, b.icon)
+		</button>
+	}
+	<button class={ p.buttonClass() } type="button" data-command="clear" aria-label={ p.labels().Clear } title={ p.labels().Clear }>
+		@icon("clear", iconClearFormatting)
+	</button>
+}
+
+templ icon(name, path string) {
+	<svg data-icon={ name } viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+		@templ.Raw(path)
+	</svg>
+}
