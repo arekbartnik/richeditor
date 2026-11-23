@@ -289,4 +289,5 @@ const (
 	tablerListNumbers     = `<path d="M11 6h9m-9 6h9m-8 6h8M4 16a2 2 0 1 1 4 0c0 .591-.5 1-1 1.5L4 20h4M6 10V4L4 6"/>`
 	tablerBlockquote      = `<path d="M6 15h15m0 4H6m9-8h6m0-4h-6M9 9h1a1 1 0 1 1-1 1V7.5a2 2 0 0 1 2-2M3 9h1a1 1 0 1 1-1 1V7.5a2 2 0 0 1 2-2"/>`
 	tablerClearFormatting = `<path d="m17 15l4 4m0-4l-4 4M7 6V5h11v1M7 19h4m2-14L9 19"/>`
+	tablerChevronDown     = `<path d="m6 9l6 6l6-6"/>`
 )

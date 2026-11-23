@@ -28,12 +28,16 @@ templ buttons(p Props) {
 	for _, b := range p.buttons() {
 		if b.command == "textStyle" {
 			// The empty option stands for a selection of lines in different styles.
-			<select class="rich-editor-select" data-command={ b.command } aria-label={ b.label } title={ b.label }>
-				<option value="" hidden></option>
-				for _, o := range p.textStyles() {
-					<option value={ o.value }>{ o.label }</option>
-				}
-			</select>
+			// The arrow is drawn over the select, which pages often strip of its own.
+			<span class="rich-editor-select">
+				<select data-command={ b.command } aria-label={ b.label } title={ b.label }>
+					<option value="" hidden></option>
+					for _, o := range p.textStyles() {
+						<option value={ o.value }>{ o.label }</option>
+					}
+				</select>
+				@tabler("textStyle", tablerChevronDown)
+			</span>
 		} else {
 			<button class={ p.buttonClass() } type="button" data-command={ b.command } aria-label={ b.label } title={ b.label } { b.attrs... }>
 				@b.icon

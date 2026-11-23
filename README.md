@@ -135,7 +135,7 @@ The editor's parts carry these classes.
 | `rich-editor-toolbar` | The fixed toolbar of the `Toolbar` layout. |
 | `rich-editor-popover` | The popover of the `Popover` layout. |
 | `rich-editor-button` | Each button, unless `ButtonClass` replaces it. |
-| `rich-editor-select` | The text style dropdown. |
+| `rich-editor-select` | The box around the text style dropdown, holding the `select` and its arrow, an `svg` with `data-icon="textStyle"`. The editor draws the arrow itself, so the `select` has `appearance: none`. |
 | `rich-editor-content` | The box around the editable text. The editable text inside it is `wg-content`. |
 | `wg-link-dialog` | The link prompt. |
 

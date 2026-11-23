@@ -71,34 +71,53 @@ rich-editor {
     }
   }
 
-  /* Pages often stretch every select, so the dropdown sizes itself. Only
-     background-color is set, so a page can draw its own arrow. */
+  /* Pages often stretch every select or strip its arrow, so the dropdown
+     sizes itself and draws its own arrow, with room kept for it. */
   .rich-editor-select {
-    display: inline-block;
-    inline-size: auto;
-    block-size: 28px;
-    margin: 0;
-    padding: 0 4px;
-    border: 0;
-    border-radius: var(--rich-editor-button-radius, 4px);
-    background-color: transparent;
-    box-shadow: none;
-    color: inherit;
-    font: inherit;
-    cursor: pointer;
+    position: relative;
+    display: inline-grid;
+    align-items: center;
 
-    &:hover:not(:disabled) {
-      background-color: var(--rich-editor-hover, color-mix(in srgb, currentcolor 6%, transparent));
+    select {
+      display: block;
+      inline-size: auto;
+      block-size: 28px;
+      margin: 0;
+      padding-block: 0;
+      padding-inline: 6px 26px;
+      border: 0;
+      border-radius: var(--rich-editor-button-radius, 4px);
+      background: transparent;
+      box-shadow: none;
+      color: inherit;
+      font: inherit;
+      cursor: pointer;
+      appearance: none;
+
+      &:hover:not(:disabled) {
+        background: var(--rich-editor-hover, color-mix(in srgb, currentcolor 6%, transparent));
+      }
+
+      &:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+
+      &:focus-visible {
+        outline: 2px solid var(--rich-editor-accent, #0a66d6);
+        outline-offset: -2px;
+      }
     }
 
-    &:disabled {
-      opacity: 0.4;
-      cursor: default;
+    svg {
+      position: absolute;
+      inset-inline-end: 6px;
+      opacity: 0.6;
+      pointer-events: none;
     }
 
-    &:focus-visible {
-      outline: 2px solid var(--rich-editor-accent, #0a66d6);
-      outline-offset: -2px;
+    &:has(select:disabled) svg {
+      opacity: 0.25;
     }
   }
 
