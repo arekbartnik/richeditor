@@ -4,9 +4,9 @@ A rich text editor for Go web apps that render HTML with [templ](https://templ.g
 It is a form field. Put it inside a `<form>` and the HTML posts under its name like any input.
 The editing engine is [Wordgard](https://www.npmjs.com/package/wordgard), bundled into one script, so there is no npm step in your project and no other JavaScript framework to load.
 
-The editor supports bold, italic, underline, links, bulleted and numbered lists, quotes, clearing formatting, and undo and redo.
+The editor supports headings, bold, italic, underline, links, bulleted and numbered lists, quotes, clearing formatting, and undo and redo.
 Each editor can offer only some of these.
-Typing `- `, `1. ` or `> ` at the start of a line starts a list or a quote.
+Typing `- `, `1. ` or `> ` at the start of a line starts a list or a quote, and `## ` an h2 heading.
 Mod-b, Mod-i, Mod-u and Mod-k toggle bold, italic, underline and a link.
 
 ## Installation
@@ -47,7 +47,7 @@ The script is a module, so a page that loads it without `Head` needs `<script ty
 
 The posted HTML comes from the browser, so it can hold anything.
 Sanitize it before you store or display it, for example with [bluemonday](https://github.com/microcosm-cc/bluemonday).
-The editor itself produces only `p`, `br`, `strong`, `em`, `u`, `a` with `href`, `ul`, `ol`, `li` and `blockquote`.
+The editor itself produces only `p`, `br`, `strong`, `em`, `u`, `a` with `href`, `ul`, `ol`, `li`, `blockquote` and, with the text style dropdown, `h1` to `h6`.
 
 ### Props
 
@@ -57,6 +57,7 @@ The editor itself produces only `p`, `br`, `strong`, `em`, `u`, `a` with `href`,
 | `Value` | Initial HTML. Form reset restores it. |
 | `Label` | Accessible name of the editable area. |
 | `Buttons` | The buttons, in toolbar order. See below. |
+| `Headings` | The heading levels the `TextStyle` dropdown offers after Paragraph. Nil offers 1, 2 and 3. |
 | `Layout` | `richeditor.Toolbar` (default) shows a fixed toolbar. `richeditor.Popover` shows the buttons over selected text. Alt+F10 moves focus into the popover and Escape returns to the text. |
 | `Labels` | Button, toolbar and link prompt labels. An empty field takes its text from `richeditor.English`. |
 | `Icons` | Button icons as templ components. A nil field takes the built-in Tabler icon. |
@@ -86,7 +87,7 @@ richeditor.Props{
 }
 ```
 
-Nil shows `richeditor.DefaultButtons`, which is every button.
+Nil shows `richeditor.DefaultButtons`, which is every button but `TextStyle`.
 An empty slice shows none and leaves plain paragraphs.
 `Clear`, `Undo` and `Redo` always come last and sit at the far end of the toolbar.
 Undo and redo stay on the keyboard even without their buttons.
@@ -94,6 +95,22 @@ Undo and redo stay on the keyboard even without their buttons.
 The link button works on selected text.
 It asks for an address, adds `https://` to a bare domain such as `example.com`, and refuses schemes other than `http`, `https`, `mailto` and `tel`.
 On text that already has a link, it removes the link.
+
+`richeditor.TextStyle` is a dropdown, not a button.
+It shows the style of the lines in the selection, Paragraph or a heading, and changing it gives every selected line that style.
+`Headings` picks its heading levels.
+Typing `## ` at the start of a line and Ctrl-Shift-2 make an h2 when the dropdown offers level 2, and so on for each offered level, while Ctrl-Shift-0 makes a paragraph.
+Clear formatting turns headings back into paragraphs.
+With any heading offered the editor holds headings of every level, so loaded or pasted HTML keeps an h1 even when only levels 2 and 3 are offered.
+Sanitize or rewrite such headings on the server if the page allows only some levels.
+
+```go
+richeditor.Props{
+	Name:     "article",
+	Buttons:  append([]richeditor.Button{richeditor.TextStyle}, richeditor.DefaultButtons...),
+	Headings: []int{2, 3},
+}
+```
 
 ### Icons
 
@@ -118,6 +135,7 @@ The editor's parts carry these classes.
 | `rich-editor-toolbar` | The fixed toolbar of the `Toolbar` layout. |
 | `rich-editor-popover` | The popover of the `Popover` layout. |
 | `rich-editor-button` | Each button, unless `ButtonClass` replaces it. |
+| `rich-editor-select` | The text style dropdown. |
 | `rich-editor-content` | The box around the editable text. The editable text inside it is `wg-content`. |
 | `wg-link-dialog` | The link prompt. |
 

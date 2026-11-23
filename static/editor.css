@@ -71,6 +71,37 @@ rich-editor {
     }
   }
 
+  /* Pages often stretch every select, so the dropdown sizes itself. Only
+     background-color is set, so a page can draw its own arrow. */
+  .rich-editor-select {
+    display: inline-block;
+    inline-size: auto;
+    block-size: 28px;
+    margin: 0;
+    padding: 0 4px;
+    border: 0;
+    border-radius: var(--rich-editor-button-radius, 4px);
+    background-color: transparent;
+    box-shadow: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      background-color: var(--rich-editor-hover, color-mix(in srgb, currentcolor 6%, transparent));
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--rich-editor-accent, #0a66d6);
+      outline-offset: -2px;
+    }
+  }
+
   [data-command][aria-pressed="true"] {
     background: var(--rich-editor-pressed, color-mix(in srgb, currentcolor 10%, transparent));
   }

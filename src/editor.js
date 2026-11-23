@@ -1,11 +1,11 @@
-import { Command, moveToDocSide, unwrapBlock } from "wordgard/command";
+import { Command, moveToDocSide, setTextblockType, unwrapBlock } from "wordgard/command";
 import { serialize } from "wordgard/doc";
-import { Dialog, KeyBinding, Wordgard } from "wordgard/editor";
+import { Dialog, InputRule, KeyBinding, Wordgard } from "wordgard/editor";
 import { history, redoButton, undoButton } from "wordgard/history";
 import { phrases } from "wordgard/phrases";
 import { blockDoc, blockquote, bulletList, emphasis, lineBreak, link, orderedList, paragraph, strong, underline } from "wordgard/schema";
 import { GardState } from "wordgard/state";
-import { Emphasis, Link, Strong, Underline } from "wordgard/types";
+import { Emphasis, Heading, Link, Paragraph, Strong, Underline } from "wordgard/types";
 
 const base = [blockDoc(), paragraph(), lineBreak(), history()];
 
@@ -82,8 +82,50 @@ const clearFormatting =
       if (tr.changes.empty) break;
       changes = changes.compose(tr.changes);
     }
+    const plain = setTextblockType({ state: tr.state }, Paragraph);
+    if (plain) {
+      tr = tr.state.update(plain);
+      changes = changes.compose(tr.changes);
+    }
     return { changes, selection: tr.state.selection, scrollIntoView: true, userEvent: "format.clear" };
   };
+
+// selectionIn is Wordgard's own check for its textblock style buttons, which
+// it does not export.
+const selectionIn = (tag) => (state) => {
+  const block = state.sel.head.textblockParent;
+  return !!block && block.start == state.sel.anchor.textblockParent?.start && block.node.tag.eq(tag);
+};
+
+// textStyleFeature drives the text style dropdown. Its option values are 0
+// for a paragraph and the level for a heading, and only the offered levels
+// get a key binding and a "## " input rule.
+const textStyleFeature = (el) => {
+  const levels = [...el.options].map((o) => Number(o.value)).filter((level) => level > 0);
+  const styles = [["0", Paragraph], ...levels.map((level) => [String(level), Heading.of(level)])];
+  const set = (tag) => (target) => setTextblockType(target, tag);
+  return {
+    config: [
+      levels.length ? GardState.schemaElement.of(Heading) : [],
+      KeyBinding.of({ key: "Ctrl-Shift-0", run: set(Paragraph) }),
+      levels.map((level) => [
+        KeyBinding.of({ key: `Ctrl-Shift-${level}`, run: set(Heading.of(level)) }),
+        InputRule.textblockType(new RegExp(`^#{${level}} $`), Heading.of(level), true),
+      ]),
+    ],
+    control: {
+      sync(state) {
+        el.value = styles.find(([, tag]) => selectionIn(tag)(state))?.[0] ?? "";
+        el.disabled = state.readOnly;
+      },
+      change(wg) {
+        const tag = styles.find(([value]) => value === el.value)?.[1];
+        if (tag) Command.dispatch(wg, set(tag));
+        wg.focus();
+      },
+    },
+  };
+};
 
 // Each button brings its formatting into the schema, so an editor without
 // a button cannot hold that formatting at all.
@@ -97,6 +139,7 @@ const features = {
   bulletList: () => ({ config: bulletList(), button: bulletList.toggleButton }),
   orderedList: () => ({ config: orderedList(), button: orderedList.toggleButton }),
   blockquote: () => ({ config: blockquote(), button: blockquote.button }),
+  textStyle: textStyleFeature,
 };
 
 const unwrapTightListParagraphs = (root) => {
@@ -165,7 +208,8 @@ const selectionPopover = (host, { content, focus, selectedRect }) => {
   };
 };
 
-const keepFocus = (evt) => evt.target.closest("[data-command]") && evt.preventDefault();
+// A dropdown has to take focus to open, so only buttons leave it in the text.
+const keepFocus = (evt) => evt.target.closest("button[data-command]") && evt.preventDefault();
 
 class RichEditor extends HTMLElement {
   static formAssociated = true;
@@ -175,6 +219,7 @@ class RichEditor extends HTMLElement {
   #html = null;
   #message = "";
   #toolbar = [];
+  #controls = [];
   #config = [];
   #popover = null;
 
@@ -189,6 +234,7 @@ class RichEditor extends HTMLElement {
     const enabled = els.map((el) => [el, features[el.dataset.command]?.(el) ?? {}]);
     const marks = enabled.flatMap(([, f]) => f.mark ?? []);
     this.#toolbar = enabled.map(([el, f]) => [el, el.dataset.command === "clear" ? { run: clearFormatting(marks) } : f.button]);
+    this.#controls = enabled.flatMap(([el, f]) => (f.control ? [[el, f.control]] : []));
     this.#config = [base, enabled.map(([, f]) => f.config ?? [])];
     this.#popover = selectionPopover(this, {
       content: () => this.#wg.contentDOM,
@@ -203,6 +249,7 @@ class RichEditor extends HTMLElement {
     });
     this.addEventListener("mousedown", keepFocus);
     this.addEventListener("click", this.#runCommand);
+    this.addEventListener("change", this.#changeControl);
     // A moved editor reconnects with the text typed so far.
     this.#mount(this.#html ?? this.getAttribute("value") ?? "");
   }
@@ -211,6 +258,7 @@ class RichEditor extends HTMLElement {
     this.#popover.destroy();
     this.removeEventListener("mousedown", keepFocus);
     this.removeEventListener("click", this.#runCommand);
+    this.removeEventListener("change", this.#changeControl);
     this.#wg.dom.remove();
     this.#wg = null;
   }
@@ -276,11 +324,20 @@ class RichEditor extends HTMLElement {
     if (!this.#wg.dom.contains(document.activeElement)) this.#wg.focus();
   };
 
+  #changeControl = (evt) => {
+    const control = this.#controls.find(([el]) => el === evt.target)?.[1];
+    if (!control) return;
+    // The dropdown has no name, so its change is no change of the form.
+    evt.stopPropagation();
+    control.change(this.#wg);
+  };
+
   #syncToolbar(state) {
     for (const [el, button] of this.#toolbar) {
       if (button?.active) el.setAttribute("aria-pressed", String(button.active(state)));
       if (button?.enable) el.disabled = !button.enable(state);
     }
+    for (const [, control] of this.#controls) control.sync(state);
   }
 
   #validate() {

@@ -20,7 +20,8 @@ func main() {
 		fmt.Fprint(w, `<!doctype html><html lang="en"><meta charset="utf-8"><title>richeditor</title>`)
 		_ = richeditor.Head("/richeditor/editor.js", "/richeditor/editor.css").Render(r.Context(), w)
 		fmt.Fprint(w, `<body style="max-width: 40rem; margin: 2rem auto; font-family: system-ui"><form method="post">`)
-		_ = richeditor.Editor(richeditor.Props{Name: "body", Label: "Body", Value: posted}).Render(r.Context(), w)
+		body := append([]richeditor.Button{richeditor.TextStyle}, richeditor.DefaultButtons...)
+		_ = richeditor.Editor(richeditor.Props{Name: "body", Label: "Body", Value: posted, Buttons: body}).Render(r.Context(), w)
 		fmt.Fprint(w, `<p>A summary allows only bold and italic, so pasted links and lists lose their markup.</p>`)
 		summary := r.PostFormValue("summary")
 		buttons := []richeditor.Button{richeditor.Strong, richeditor.Emphasis}

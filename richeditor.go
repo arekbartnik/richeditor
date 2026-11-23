@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"maps"
 	"slices"
+	"strconv"
 
 	"github.com/a-h/templ"
 )
@@ -57,10 +58,17 @@ const (
 	OrderedList
 	Blockquote
 	Clear
+	// TextStyle is a dropdown that turns the selected lines into a paragraph
+	// or a heading of one of Props.Headings, and shows the style of the line
+	// with the cursor. Typing "## " at the start of a line makes an h2, and
+	// Ctrl-Shift-2 does the same, for each offered level, while Ctrl-Shift-0
+	// makes a paragraph. With headings offered the editor holds headings of
+	// every level, so loaded and pasted h1 to h6 keep their level.
+	TextStyle
 )
 
-// DefaultButtons is every button, in the order an Editor shows them when
-// its Buttons are nil.
+// DefaultButtons is every button but TextStyle, in the order an Editor shows
+// them when its Buttons are nil.
 var DefaultButtons = []Button{Strong, Emphasis, Underline, Link, BulletList, OrderedList, Blockquote, Clear, Undo, Redo}
 
 // trailing buttons sit at the end of the toolbar, so the toolbar layout can
@@ -84,6 +92,11 @@ type Labels struct {
 	OrderedList string
 	Blockquote  string
 	Clear       string
+	// TextStyle names the text style dropdown, whose options are Paragraph
+	// and Heading followed by the level, as in "Heading 2".
+	TextStyle string
+	Paragraph string
+	Heading   string
 	// LinkURL labels the address field of the link prompt.
 	LinkURL string
 	// LinkSubmit labels the button that adds the link.
@@ -105,6 +118,9 @@ var English = Labels{
 	OrderedList: "Numbered list",
 	Blockquote:  "Quote",
 	Clear:       "Clear formatting",
+	TextStyle:   "Text style",
+	Paragraph:   "Paragraph",
+	Heading:     "Heading",
 	LinkURL:     "Link address",
 	LinkSubmit:  "Add link",
 	CloseDialog: "Close",
@@ -138,8 +154,11 @@ type Props struct {
 	// their order but always come last. Nil shows DefaultButtons, and an
 	// empty slice shows none, which leaves plain paragraphs.
 	Buttons []Button
-	Labels  Labels
-	Icons   Icons
+	// Headings are the heading levels, 1 to 6, that the TextStyle dropdown
+	// offers after Paragraph. Nil offers 1, 2 and 3.
+	Headings []int
+	Labels   Labels
+	Icons    Icons
 	// ButtonClass replaces the "rich-editor-button" class on each button, so
 	// the buttons can take the page's own button styles.
 	ButtonClass string
@@ -165,6 +184,9 @@ func (p Props) labels() Labels {
 		OrderedList: cmp.Or(l.OrderedList, English.OrderedList),
 		Blockquote:  cmp.Or(l.Blockquote, English.Blockquote),
 		Clear:       cmp.Or(l.Clear, English.Clear),
+		TextStyle:   cmp.Or(l.TextStyle, English.TextStyle),
+		Paragraph:   cmp.Or(l.Paragraph, English.Paragraph),
+		Heading:     cmp.Or(l.Heading, English.Heading),
 		LinkURL:     cmp.Or(l.LinkURL, English.LinkURL),
 		LinkSubmit:  cmp.Or(l.LinkSubmit, English.LinkSubmit),
 		CloseDialog: cmp.Or(l.CloseDialog, English.CloseDialog),
@@ -189,6 +211,28 @@ type button struct {
 	label   string
 	icon    templ.Component
 	attrs   templ.Attributes
+}
+
+// option is one choice of a dropdown. Its value is 0 for a paragraph and the
+// level for a heading.
+type option struct {
+	value string
+	label string
+}
+
+func (p Props) textStyles() []option {
+	l := p.labels()
+	levels := p.Headings
+	if levels == nil {
+		levels = []int{1, 2, 3}
+	}
+	options := []option{{"0", l.Paragraph}}
+	for _, level := range levels {
+		if level >= 1 && level <= 6 {
+			options = append(options, option{strconv.Itoa(level), l.Heading + " " + strconv.Itoa(level)})
+		}
+	}
+	return options
 }
 
 var pressed = templ.Attributes{"aria-pressed": "false"}
@@ -226,6 +270,8 @@ func (p Props) buttons() []button {
 			buttons = append(buttons, button{"blockquote", l.Blockquote, cmp.Or(i.Blockquote, tabler("blockquote", tablerBlockquote)), pressed})
 		case Clear:
 			buttons = append(buttons, button{"clear", l.Clear, cmp.Or(i.Clear, tabler("clear", tablerClearFormatting)), nil})
+		case TextStyle:
+			buttons = append(buttons, button{"textStyle", l.TextStyle, nil, nil})
 		}
 	}
 	return buttons

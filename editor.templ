@@ -26,9 +26,19 @@ templ Editor(p Props) {
 
 templ buttons(p Props) {
 	for _, b := range p.buttons() {
-		<button class={ p.buttonClass() } type="button" data-command={ b.command } aria-label={ b.label } title={ b.label } { b.attrs... }>
-			@b.icon
-		</button>
+		if b.command == "textStyle" {
+			// The empty option stands for a selection of lines in different styles.
+			<select class="rich-editor-select" data-command={ b.command } aria-label={ b.label } title={ b.label }>
+				<option value="" hidden></option>
+				for _, o := range p.textStyles() {
+					<option value={ o.value }>{ o.label }</option>
+				}
+			</select>
+		} else {
+			<button class={ p.buttonClass() } type="button" data-command={ b.command } aria-label={ b.label } title={ b.label } { b.attrs... }>
+				@b.icon
+			</button>
+		}
 	}
 }
 
