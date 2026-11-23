@@ -101,6 +101,10 @@ type Labels struct {
 	LinkURL string
 	// LinkSubmit labels the button that adds the link.
 	LinkSubmit string
+	// LinkUpdate and LinkRemove label the buttons that change and remove a
+	// link the cursor is in.
+	LinkUpdate string
+	LinkRemove string
 	// CloseDialog labels the button that closes the link prompt.
 	CloseDialog string
 }
@@ -123,6 +127,8 @@ var English = Labels{
 	Heading:     "Heading",
 	LinkURL:     "Link address",
 	LinkSubmit:  "Add link",
+	LinkUpdate:  "Update link",
+	LinkRemove:  "Remove link",
 	CloseDialog: "Close",
 }
 
@@ -189,6 +195,8 @@ func (p Props) labels() Labels {
 		Heading:     cmp.Or(l.Heading, English.Heading),
 		LinkURL:     cmp.Or(l.LinkURL, English.LinkURL),
 		LinkSubmit:  cmp.Or(l.LinkSubmit, English.LinkSubmit),
+		LinkUpdate:  cmp.Or(l.LinkUpdate, English.LinkUpdate),
+		LinkRemove:  cmp.Or(l.LinkRemove, English.LinkRemove),
 		CloseDialog: cmp.Or(l.CloseDialog, English.CloseDialog),
 	}
 }
@@ -261,6 +269,7 @@ func (p Props) buttons() []button {
 		case Link:
 			buttons = append(buttons, button{"link", l.Link, cmp.Or(i.Link, tabler("link", tablerLink)), templ.Attributes{
 				"aria-pressed": "false", "data-url-label": l.LinkURL, "data-submit-label": l.LinkSubmit, "data-close-label": l.CloseDialog,
+				"data-update-label": l.LinkUpdate, "data-remove-label": l.LinkRemove,
 			}})
 		case BulletList:
 			buttons = append(buttons, button{"bulletList", l.BulletList, cmp.Or(i.BulletList, tabler("bulletList", tablerList)), pressed})

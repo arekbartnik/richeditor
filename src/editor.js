@@ -19,53 +19,97 @@ const linkTarget = (input) => {
   return url.includes("@") && !url.includes("/") ? `mailto:${url}` : `https://${url}`;
 };
 
+// linkAt finds the link to edit: the run of text with one link around the
+// cursor, or the first such run the selection touches.
+const linkAt = (state) => {
+  const { selection, doc, sel } = state;
+  const block = sel.head.textblockParent;
+  if (!block) return null;
+  const runs = [];
+  doc.iterate(block.start, block.end, (node, pos) => {
+    const mark = node.marks && Link.isInSet(node.marks);
+    if (!mark) return;
+    const last = runs.at(-1);
+    if (last && last.to === pos && last.mark.eq(mark)) last.to = pos + node.length;
+    else runs.push({ from: pos, to: pos + node.length, mark });
+  });
+  const { from, to } = selection;
+  return runs.find((run) => (selection.empty ? run.from <= from && from <= run.to : run.from < to && from < run.to)) ?? null;
+};
+
+// linkForm is Wordgard's prompt form with the link's address filled in and,
+// for an existing link, a button that removes it.
+const linkForm = (el, address, remove) => {
+  const form = document.createElement("form");
+  form.className = "wg-form";
+  const label = form.appendChild(document.createElement("label"));
+  const input = document.createElement("input");
+  Object.assign(input, { type: "text", name: "url", value: address, className: "wg-textfield" });
+  label.append(`${el.dataset.urlLabel}: `, input);
+  const submit = document.createElement("button");
+  Object.assign(submit, { type: "submit", className: "wg-dialog-button", textContent: remove ? el.dataset.updateLabel : el.dataset.submitLabel });
+  form.append(" ", submit);
+  if (remove) {
+    const button = document.createElement("button");
+    Object.assign(button, { type: "button", className: "wg-dialog-button", textContent: el.dataset.removeLabel, onclick: remove });
+    form.append(" ", button);
+  }
+  return form;
+};
+
 // Adapted from Wordgard's toggleLink, MIT licensed, to word the prompt from
-// the button and to check the address.
+// the button, to check the address, and to edit an existing link instead of
+// only removing it.
 const linkFeature = (el) => {
-  const toggleLink = (wg) => {
+  const editLink = (wg) => {
     if (wg.state.readOnly) return false;
-    const open = Dialog.get(wg, toggleLink);
+    const open = Dialog.get(wg, editLink);
     if (open) {
       open.close();
       return true;
     }
-    const { selection, doc } = wg.state;
-    if (selection.empty) return false;
-    const remove = [];
-    for (const { from, to } of selection.ranges)
-      doc.iterate(from, to, (node, pos) => {
-        const has = Link.isInSet(node.marks);
-        if (has) remove.push({ from: pos, to: pos + node.length, remove: has });
-      });
-    if (remove.length) {
-      wg.dispatch({ changes: remove, userEvent: "mark.remove" });
-      return true;
-    }
+    const { selection } = wg.state;
+    const current = linkAt(wg.state);
+    if (!current && selection.empty) return false;
+    let removed = false;
     Dialog.show(wg, {
-      key: toggleLink,
-      label: el.dataset.urlLabel,
-      input: { type: "text", name: "url" },
-      submitLabel: el.dataset.submitLabel,
+      key: editLink,
+      content: (_, close) =>
+        linkForm(el, current?.mark.value ?? "", current && (() => {
+          removed = true;
+          close();
+        })),
       class: "wg-link-dialog",
-      focus: true,
+      focus: "input",
       closedBy: (tr) => !!tr.selection,
-      tooltip: { pos: selection.from },
+      tooltip: { pos: current ? current.from : selection.from },
     }).result.then((form) => {
       wg.focus();
-      const url = form && linkTarget(form.elements.namedItem("url")?.value ?? "");
-      if (url) wg.dispatch({ changes: wg.state.selection.ranges.map((r) => ({ from: r.from, to: r.to, add: Link.of(url) })), userEvent: "mark.add" });
+      const address = form?.elements.namedItem("url")?.value.trim() ?? "";
+      if (current && (removed || (form && !address))) {
+        wg.dispatch({ changes: [{ from: current.from, to: current.to, remove: current.mark }], userEvent: "mark.remove" });
+        return;
+      }
+      const url = form && linkTarget(address);
+      if (!url) return;
+      const ranges = current ? [current] : wg.state.selection.ranges;
+      wg.dispatch({ changes: ranges.map((r) => ({ from: r.from, to: r.to, add: Link.of(url) })), userEvent: "mark.add" });
     });
     return true;
   };
   return {
     config: [
       GardState.schemaElement.of(Link),
-      KeyBinding.of({ key: "Mod-k", run: toggleLink }),
+      KeyBinding.of({ key: "Mod-k", run: editLink }),
       link.tooltip,
       link.pasteOver,
       phrases.translatePartial({ dialog_close: el.dataset.closeLabel }),
     ],
-    button: { run: toggleLink, active: link.button.active, enable: link.button.enable },
+    button: {
+      run: editLink,
+      active: (state) => !!linkAt(state),
+      enable: (state) => !state.readOnly && (!state.selection.empty || !!linkAt(state)),
+    },
   };
 };
 

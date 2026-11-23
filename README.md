@@ -7,7 +7,7 @@ The editing engine is [Wordgard](https://www.npmjs.com/package/wordgard), bundle
 The editor supports headings, bold, italic, underline, links, bulleted and numbered lists, quotes, clearing formatting, and undo and redo.
 Each editor can offer only some of these.
 Typing `- `, `1. ` or `> ` at the start of a line starts a list or a quote, and `## ` an h2 heading.
-Mod-b, Mod-i, Mod-u and Mod-k toggle bold, italic, underline and a link.
+Mod-b, Mod-i and Mod-u toggle bold, italic and underline, and Mod-k adds or edits a link.
 
 ## Installation
 
@@ -94,7 +94,9 @@ Undo and redo stay on the keyboard even without their buttons.
 
 The link button works on selected text.
 It asks for an address, adds `https://` to a bare domain such as `example.com`, and refuses schemes other than `http`, `https`, `mailto` and `tel`.
-On text that already has a link, it removes the link.
+With the cursor or the selection in a link, the button is pressed and opens the same prompt with the link's address filled in.
+"Update link" gives the whole link the new address, and "Remove link", or an emptied address, removes the link and keeps its text.
+Mod-k does the same as the button.
 
 `richeditor.TextStyle` is a dropdown, not a button.
 It shows the style of the lines in the selection, Paragraph or a heading, and changing it gives every selected line that style.
